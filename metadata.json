@@ -1,0 +1,6 @@
+{
+  "name": "World Order",
+  "description": "Offline single-player geopolitical, macroeconomic, and political grand strategy simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
