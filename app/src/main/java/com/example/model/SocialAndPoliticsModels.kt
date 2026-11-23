@@ -175,6 +175,32 @@ data class ParliamentBill(
 )
 
 @JsonClass(generateAdapter = true)
+data class DirectMessage(
+    val id: String,
+    val npcId: String,
+    val npcName: String,
+    val npcHandle: String,
+    val fromPlayer: Boolean,
+    val text: String,
+    val timestampStr: String
+)
+
+@JsonClass(generateAdapter = true)
+data class MilitaryArsenal(
+    val armyDivisions: Int = 12,
+    val airSquadrons: Int = 6,
+    val navalFleets: Int = 3,
+    val readinessPct: Int = 78,
+    val rifles: Int = 25000,
+    val ammunition: Int = 120000,
+    val drones: Int = 180,
+    val artillery: Int = 320,
+    val tanks: Int = 450,
+    val warships: Int = 18,
+    val pmcBattalions: Int = 0
+)
+
+@JsonClass(generateAdapter = true)
 data class GameState(
     val campaignStarted: Boolean = false,
     val startingMode: StartingMode = StartingMode.CAREER,
@@ -203,5 +229,13 @@ data class GameState(
     val notifications: List<NotificationItem> = emptyList(),
     val knowledgeNodes: List<KnowledgeNode> = emptyList(),
     val playerInventory: Map<String, Int> = emptyMap(), // CommodityGood.name -> qty
+    val bankTransactions: List<BankTransaction> = emptyList(),
+    val bonds: List<BondOffering> = emptyList(),
+    val bilateralLoans: List<BilateralLoan> = emptyList(),
+    val derivatives: List<DerivativeContract> = emptyList(),
+    val patents: List<PatentAsset> = emptyList(),
+    val realEstate: List<RealEstateProperty> = emptyList(),
+    val directMessages: List<DirectMessage> = emptyList(),
+    val militaryArsenal: MilitaryArsenal = MilitaryArsenal(),
     val lastEventBanner: String = "World Order Simulation Ready • Offline Single-Player Engine Active"
 )

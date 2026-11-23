@@ -140,11 +140,6 @@ fun WorldOrderRootApp(vm: GameViewModel = viewModel()) {
                                 initialTab = 2,
                                 onInspectNpc = vm::inspectNpc
                             )
-                            NavDestination.SOCIETY -> ExplorerScreen(
-                                state = state,
-                                initialTab = 0,
-                                onInspectNpc = vm::inspectNpc
-                            )
                             NavDestination.WORLD_MAP -> WorldMapScreen(
                                 state = state,
                                 selectedProvinceId = selectedProvinceId,
@@ -156,8 +151,7 @@ fun WorldOrderRootApp(vm: GameViewModel = viewModel()) {
                             )
                             NavDestination.ECONOMY -> EconomyScreen(
                                 state = state,
-                                initialTab = 0,
-                                onApplyJob = vm::applyForJob,
+                                initialSubRoute = null,
                                 onFoundCompany = vm::foundCompany,
                                 onHireNpc = vm::hireNpcForCompany,
                                 onBuyStock = vm::buyStock,
@@ -167,12 +161,16 @@ fun WorldOrderRootApp(vm: GameViewModel = viewModel()) {
                                 onBuildSubstationOrUpgrade = vm::buildSubstationOrUpgrade,
                                 onBuildTransmission = vm::buildTransmissionLine,
                                 onUpdateCentralBank = vm::updateCentralBankPolicy,
-                                onUpdatePlanning = vm::updateCentralPlanning
+                                onBuyBond = vm::buyBond,
+                                onIssueBilateralLoan = vm::issueBilateralLoan,
+                                onOpenDerivative = vm::openDerivative,
+                                onCloseDerivative = vm::closeDerivative,
+                                onRegisterPatent = vm::registerPatent,
+                                onSwapForex = vm::swapForex
                             )
                             NavDestination.MARKET -> EconomyScreen(
                                 state = state,
-                                initialTab = 2,
-                                onApplyJob = vm::applyForJob,
+                                initialSubRoute = EconomySubRoute.B2C_MARKET,
                                 onFoundCompany = vm::foundCompany,
                                 onHireNpc = vm::hireNpcForCompany,
                                 onBuyStock = vm::buyStock,
@@ -182,47 +180,69 @@ fun WorldOrderRootApp(vm: GameViewModel = viewModel()) {
                                 onBuildSubstationOrUpgrade = vm::buildSubstationOrUpgrade,
                                 onBuildTransmission = vm::buildTransmissionLine,
                                 onUpdateCentralBank = vm::updateCentralBankPolicy,
-                                onUpdatePlanning = vm::updateCentralPlanning
+                                onBuyBond = vm::buyBond,
+                                onIssueBilateralLoan = vm::issueBilateralLoan,
+                                onOpenDerivative = vm::openDerivative,
+                                onCloseDerivative = vm::closeDerivative,
+                                onRegisterPatent = vm::registerPatent,
+                                onSwapForex = vm::swapForex
                             )
-                            NavDestination.ORGANIZATIONS, NavDestination.ADMINISTRATION -> OrganizationsScreen(
+                            NavDestination.ORGANIZATIONS -> OrganizationsScreen(
                                 state = state,
-                                initialTab = 0,
+                                onApplyJob = vm::applyForJob,
+                                onFoundCompany = vm::foundCompany,
+                                onFoundParty = vm::foundPoliticalParty
+                            )
+                            NavDestination.SUPRANATIONAL -> SupranationalOrgsScreen(state = state)
+                            NavDestination.RULES -> RulesAndAdminScreen(
+                                state = state,
+                                initialSubRoute = null,
                                 onAppointMinister = vm::appointMinister,
                                 onProposeLaw = vm::proposeLawBill,
                                 onProposeConstitution = vm::proposeConstitutionalReform,
                                 onCastVote = vm::castParliamentVote,
-                                onFoundParty = vm::foundPoliticalParty
+                                onUpdatePlanning = vm::updateCentralPlanning,
+                                onBuildSubstationOrUpgrade = vm::buildSubstationOrUpgrade,
+                                onBuildTransmission = vm::buildTransmissionLine
                             )
-                            NavDestination.LAWS -> OrganizationsScreen(
+                            NavDestination.ADMINISTRATION -> RulesAndAdminScreen(
                                 state = state,
-                                initialTab = 2,
+                                initialSubRoute = RulesAdminSubRoute.CABINET_MINISTRIES,
                                 onAppointMinister = vm::appointMinister,
                                 onProposeLaw = vm::proposeLawBill,
                                 onProposeConstitution = vm::proposeConstitutionalReform,
                                 onCastVote = vm::castParliamentVote,
-                                onFoundParty = vm::foundPoliticalParty
+                                onUpdatePlanning = vm::updateCentralPlanning,
+                                onBuildSubstationOrUpgrade = vm::buildSubstationOrUpgrade,
+                                onBuildTransmission = vm::buildTransmissionLine
                             )
-                            NavDestination.SUPRANATIONAL -> OrganizationsScreen(
-                                state = state,
-                                initialTab = 5,
-                                onAppointMinister = vm::appointMinister,
-                                onProposeLaw = vm::proposeLawBill,
-                                onProposeConstitution = vm::proposeConstitutionalReform,
-                                onCastVote = vm::castParliamentVote,
-                                onFoundParty = vm::foundPoliticalParty
-                            )
+                            NavDestination.SOCIETY -> SocietyScreen(state = state)
+                            NavDestination.TUTORIAL -> TutorialScreen()
                             NavDestination.CONFLICT -> ConflictScreen(
                                 state = state,
                                 onLaunchCovertOp = vm::launchCovertOp,
-                                onLaunchConflict = vm::launchConflictAction
+                                onLaunchConflict = vm::launchConflictAction,
+                                onBuyHardware = vm::buyMilitaryHardware,
+                                onHirePmc = vm::hirePmcBattalion
                             )
                             NavDestination.INBOX -> InboxScreen(
                                 state = state,
-                                onRespondMail = vm::respondToMail
+                                onRespondMail = vm::respondToMail,
+                                onSendDirectMessage = vm::sendDirectMessage
                             )
                             NavDestination.NOTIFICATIONS -> NotificationsScreen(
                                 state = state,
                                 onMarkAllRead = vm::markAllNotificationsRead
+                            )
+                            NavDestination.AWARDS -> AwardsScreen(state = state)
+                            NavDestination.PERSONAL -> PersonalHubScreen(
+                                state = state,
+                                onClaimWorkDiscipline = vm::claimWorkDiscipline,
+                                onStartTraining = vm::startStatTraining,
+                                onStudy = { vm.studyUniversity(it) },
+                                onBoostAraucitas = vm::boostUniversityWithAraucitas,
+                                onStartResearch = vm::startKnowledgeResearch,
+                                onBuyRealEstate = vm::buyRealEstate
                             )
                             NavDestination.PROFILE -> ProfileScreen(
                                 state = state,
@@ -240,9 +260,17 @@ fun WorldOrderRootApp(vm: GameViewModel = viewModel()) {
                                 state = state,
                                 onStartResearch = vm::startKnowledgeResearch
                             )
-                            NavDestination.MORE, NavDestination.SETTINGS -> MoreGridScreen(
+                            NavDestination.MORE -> MoreGridScreen(
                                 state = state,
-                                onNavigate = vm::navigateTo,
+                                onNavigate = vm::navigateTo
+                            )
+                            NavDestination.SETTINGS -> SettingsScreen(
+                                state = state,
+                                saveSlots = saveSlots,
+                                onSpeedSelected = vm::setGameSpeed,
+                                onSaveToSlot = vm::saveGameToSlot,
+                                onLoadFromSlot = vm::loadGameFromSlot,
+                                onDeleteSlot = vm::deleteSaveSlot,
                                 onOpenNewCampaign = { forceSetupMode = true }
                             )
                         }

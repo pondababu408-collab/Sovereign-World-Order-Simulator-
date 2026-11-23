@@ -418,6 +418,32 @@ object SimulationEngine {
             )
         }
 
+        // C2. Bonds, Patents & Real Estate Daily Yields
+        var passiveYieldUsd = 0.0
+        val updatedBonds = state.bonds.map { b ->
+            if (b.unitsHeld > 0) {
+                val dailyCoupon = (b.faceValueUsd * (b.yieldPct / 100.0) / 30.0) * b.unitsHeld
+                passiveYieldUsd += dailyCoupon
+                val rem = b.daysRemaining - 1
+                if (rem <= 0) {
+                    passiveYieldUsd += b.faceValueUsd * b.unitsHeld
+                    b.copy(unitsHeld = 0, daysRemaining = 0)
+                } else b.copy(daysRemaining = rem)
+            } else b
+        }
+        state.patents.filter { it.ownerId == player.id }.forEach { pat ->
+            passiveYieldUsd += pat.dailyRoyaltyUsd * pat.licensedCount
+        }
+        state.realEstate.filter { it.owned }.forEach { prop ->
+            passiveYieldUsd += prop.dailyYieldUsd
+        }
+        if (passiveYieldUsd > 0.0) {
+            player = player.copy(
+                cashUsd = player.cashUsd + passiveYieldUsd,
+                cashLocal = player.cashLocal + passiveYieldUsd * homeCountry.forexPerUsd
+            )
+        }
+
         // G. Random Macro / Geopolitical Event Banner every 3 days
         if (currentDay % 3 == 0) {
             val randomCountry = updatedCountries[rng.nextInt(updatedCountries.size)]
@@ -446,6 +472,7 @@ object SimulationEngine {
             notifications = notifications.take(50),
             knowledgeNodes = knowledgeNodes,
             playerInventory = inv,
+            bonds = updatedBonds,
             lastEventBanner = banner
         )
     }

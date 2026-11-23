@@ -163,3 +163,71 @@ data class SubstationNode(
     val level: Int,
     val capacityMw: Int
 )
+
+@JsonClass(generateAdapter = true)
+data class BankTransaction(
+    val id: String,
+    val title: String,
+    val amountUsd: Double,
+    val type: String, // "CREDIT", "DEBIT", "FX", "SWIFT"
+    val timestampStr: String
+)
+
+@JsonClass(generateAdapter = true)
+data class BondOffering(
+    val id: String,
+    val issuerName: String,
+    val countryIso: String,
+    val isSovereign: Boolean,
+    val yieldPct: Double,
+    val faceValueUsd: Double,
+    val maturityDays: Int,
+    val unitsHeld: Int = 0,
+    val daysRemaining: Int = 0
+)
+
+@JsonClass(generateAdapter = true)
+data class BilateralLoan(
+    val id: String,
+    val lenderName: String,
+    val borrowerIso: String,
+    val principalUsd: Double,
+    val interestRatePct: Double,
+    val remainingDays: Int,
+    val status: String // "ACTIVE", "REPAID"
+)
+
+@JsonClass(generateAdapter = true)
+data class DerivativeContract(
+    val id: String,
+    val underlyingTicker: String,
+    val direction: String, // "LONG_CALL", "SHORT_PUT"
+    val entryPriceUsd: Double,
+    val notionalUsd: Double,
+    val leverage: Int,
+    val expiryDays: Int
+)
+
+@JsonClass(generateAdapter = true)
+data class PatentAsset(
+    val id: String,
+    val title: String,
+    val sector: String,
+    val ownerId: String,
+    val registrationCostUsd: Double,
+    val dailyRoyaltyUsd: Double,
+    val licensedCount: Int = 1
+)
+
+@JsonClass(generateAdapter = true)
+data class RealEstateProperty(
+    val id: String,
+    val name: String,
+    val city: String,
+    val countryIso: String,
+    val category: String, // Penthouse, Industrial Estate, Private Jet, Villa
+    val priceUsd: Double,
+    val dailyYieldUsd: Double,
+    val owned: Boolean = false
+)
+

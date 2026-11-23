@@ -1065,4 +1065,236 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             st.copy(countries = updated, conflicts = listOf(conflict) + st.conflicts)
         }
     }
+
+    // ================= EXTENDED ECONOMY, REAL ESTATE, ARSENAL & DIRECT MESSAGES =================
+
+    fun buyBond(bondId: String) {
+        _uiState.update { st ->
+            val bond = st.bonds.firstOrNull { it.id == bondId } ?: return@update st
+            if (st.player.cashUsd < bond.faceValueUsd) {
+                showToast("Need $${bond.faceValueUsd.roundToInt()} USD for bond")
+                return@update st
+            }
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val updatedBonds = st.bonds.map { b ->
+                if (b.id == bondId) b.copy(unitsHeld = b.unitsHeld + 1, daysRemaining = b.maturityDays) else b
+            }
+            val tx = BankTransaction("tx_${System.currentTimeMillis()}", "Bought ${bond.issuerName}", -bond.faceValueUsd, "DEBIT", st.date.formatted())
+            showToast("Purchased ${bond.issuerName} (${bond.yieldPct}% yield)")
+            st.copy(
+                player = st.player.copy(cashUsd = st.player.cashUsd - bond.faceValueUsd, cashLocal = (st.player.cashUsd - bond.faceValueUsd) * home.forexPerUsd),
+                bonds = updatedBonds,
+                bankTransactions = (listOf(tx) + st.bankTransactions).take(30)
+            )
+        }
+    }
+
+    fun issueBilateralLoan(borrowerIso: String, principalUsd: Double) {
+        if (principalUsd <= 0.0) return
+        _uiState.update { st ->
+            if (st.player.cashUsd < principalUsd) {
+                showToast("Insufficient cash for $${principalUsd.roundToInt()} loan")
+                return@update st
+            }
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val loan = BilateralLoan(
+                id = "loan_${System.currentTimeMillis()}",
+                lenderName = st.player.name,
+                borrowerIso = borrowerIso,
+                principalUsd = principalUsd,
+                interestRatePct = 6.2,
+                remainingDays = 30,
+                status = "ACTIVE"
+            )
+            val updatedCountries = st.countries.map { c ->
+                if (c.iso == borrowerIso) c.copy(bilateralRelation = (c.bilateralRelation + 8).coerceAtMost(100)) else c
+            }
+            val tx = BankTransaction("tx_${System.currentTimeMillis()}", "Sovereign Loan → $borrowerIso", -principalUsd, "DEBIT", st.date.formatted())
+            showToast("Issued $${principalUsd.roundToInt()} Bilateral Loan to $borrowerIso")
+            st.copy(
+                player = st.player.copy(cashUsd = st.player.cashUsd - principalUsd, cashLocal = (st.player.cashUsd - principalUsd) * home.forexPerUsd),
+                countries = updatedCountries,
+                bilateralLoans = listOf(loan) + st.bilateralLoans,
+                bankTransactions = (listOf(tx) + st.bankTransactions).take(30)
+            )
+        }
+    }
+
+    fun openDerivative(ticker: String, direction: String, notionalUsd: Double, leverage: Int) {
+        _uiState.update { st ->
+            val margin = notionalUsd / leverage
+            if (st.player.cashUsd < margin) {
+                showToast("Need $${margin.roundToInt()} USD margin")
+                return@update st
+            }
+            val stock = st.stocks.firstOrNull { it.ticker == ticker } ?: return@update st
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val contract = DerivativeContract(
+                id = "drv_${System.currentTimeMillis()}",
+                underlyingTicker = ticker,
+                direction = direction,
+                entryPriceUsd = stock.currentPriceUsd,
+                notionalUsd = notionalUsd,
+                leverage = leverage,
+                expiryDays = 14
+            )
+            showToast("Opened ${leverage}x $direction on $$ticker")
+            st.copy(
+                player = st.player.copy(cashUsd = st.player.cashUsd - margin, cashLocal = (st.player.cashUsd - margin) * home.forexPerUsd),
+                derivatives = listOf(contract) + st.derivatives
+            )
+        }
+    }
+
+    fun closeDerivative(contractId: String) {
+        _uiState.update { st ->
+            val drv = st.derivatives.firstOrNull { it.id == contractId } ?: return@update st
+            val currentPrice = st.stocks.firstOrNull { it.ticker == drv.underlyingTicker }?.currentPriceUsd ?: drv.entryPriceUsd
+            val pctMove = (currentPrice - drv.entryPriceUsd) / drv.entryPriceUsd
+            val signedMove = if (drv.direction == "LONG_CALL") pctMove else -pctMove
+            val margin = drv.notionalUsd / drv.leverage
+            val payout = (margin + drv.notionalUsd * signedMove).coerceAtLeast(0.0)
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val tx = BankTransaction("tx_${System.currentTimeMillis()}", "Settled ${drv.underlyingTicker} Derivative", payout, "CREDIT", st.date.formatted())
+            showToast("Settled ${drv.underlyingTicker} derivative: ${if (payout >= margin) "+" else ""}$${(payout - margin).roundToInt()} P&L")
+            st.copy(
+                player = st.player.copy(cashUsd = st.player.cashUsd + payout, cashLocal = (st.player.cashUsd + payout) * home.forexPerUsd),
+                derivatives = st.derivatives.filterNot { it.id == contractId },
+                bankTransactions = (listOf(tx) + st.bankTransactions).take(30)
+            )
+        }
+    }
+
+    fun registerPatent(title: String, sector: String) {
+        if (title.isBlank()) return
+        _uiState.update { st ->
+            val fee = 8_000.0
+            if (st.player.cashUsd < fee) {
+                showToast("Need $8,000 USD to file patent")
+                return@update st
+            }
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val pat = PatentAsset(
+                id = "pat_${System.currentTimeMillis()}",
+                title = title.trim(),
+                sector = sector,
+                ownerId = st.player.id,
+                registrationCostUsd = fee,
+                dailyRoyaltyUsd = 240.0 + st.player.intelligence * 4.0,
+                licensedCount = 1
+            )
+            val (xpP, _) = SimulationEngine.grantXp(
+                st.player.copy(cashUsd = st.player.cashUsd - fee, cashLocal = (st.player.cashUsd - fee) * home.forexPerUsd),
+                50
+            )
+            showToast("Patent Registered: ${pat.title} (+50 XP)")
+            st.copy(player = xpP, patents = listOf(pat) + st.patents)
+        }
+    }
+
+    fun buyRealEstate(propertyId: String) {
+        _uiState.update { st ->
+            val prop = st.realEstate.firstOrNull { it.id == propertyId && !it.owned } ?: return@update st
+            if (st.player.cashUsd < prop.priceUsd) {
+                showToast("Need $${prop.priceUsd.roundToInt()} USD for ${prop.name}")
+                return@update st
+            }
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val updated = st.realEstate.map { if (it.id == propertyId) it.copy(owned = true) else it }
+            val tx = BankTransaction("tx_${System.currentTimeMillis()}", "Acquired ${prop.name}", -prop.priceUsd, "DEBIT", st.date.formatted())
+            showToast("Acquired ${prop.name} (+$${prop.dailyYieldUsd.roundToInt()}/day)")
+            st.copy(
+                player = st.player.copy(cashUsd = st.player.cashUsd - prop.priceUsd, cashLocal = (st.player.cashUsd - prop.priceUsd) * home.forexPerUsd),
+                realEstate = updated,
+                bankTransactions = (listOf(tx) + st.bankTransactions).take(30)
+            )
+        }
+    }
+
+    fun swapForex(targetIso: String, usdAmount: Double) {
+        if (usdAmount <= 0.0) return
+        _uiState.update { st ->
+            if (st.player.cashUsd < usdAmount) {
+                showToast("Insufficient USD balance")
+                return@update st
+            }
+            val target = st.countries.firstOrNull { it.iso == targetIso } ?: return@update st
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val spreadGain = usdAmount * 0.012
+            val tx = BankTransaction("tx_${System.currentTimeMillis()}", "FX Arbitrage USD/${target.currencyCode}", spreadGain, "FX", st.date.formatted())
+            showToast("Converted $${usdAmount.roundToInt()} USD ↔ ${String.format("%.1f", usdAmount * target.forexPerUsd)} ${target.currencyCode}")
+            st.copy(
+                player = st.player.copy(cashUsd = st.player.cashUsd + spreadGain, cashLocal = (st.player.cashUsd + spreadGain) * home.forexPerUsd),
+                bankTransactions = (listOf(tx) + st.bankTransactions).take(30)
+            )
+        }
+    }
+
+    fun buyMilitaryHardware(kind: String, qty: Int, costUsd: Double) {
+        _uiState.update { st ->
+            if (!SimulationEngine.hasPortfolioAccess(st, MinistryTag.DEFENSE)) {
+                showToast("LOCKED: Requires [DEFENSE] portfolio")
+                return@update st
+            }
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            val a = st.militaryArsenal
+            val updatedArsenal = when (kind) {
+                "Rifles" -> a.copy(rifles = a.rifles + qty)
+                "Drones" -> a.copy(drones = a.drones + qty)
+                "Artillery" -> a.copy(artillery = a.artillery + qty)
+                "Tanks" -> a.copy(tanks = a.tanks + qty)
+                "Warships" -> a.copy(warships = a.warships + qty)
+                else -> a.copy(ammunition = a.ammunition + qty)
+            }
+            showToast("Procured $qty $kind for ${home.name} Armed Forces")
+            st.copy(militaryArsenal = updatedArsenal)
+        }
+    }
+
+    fun hirePmcBattalion() {
+        _uiState.update { st ->
+            val cost = 35_000.0
+            if (st.player.cashUsd < cost) {
+                showToast("Need $35,000 USD to contract a PMC battalion")
+                return@update st
+            }
+            val home = st.countries.first { it.iso == st.player.countryIso }
+            showToast("Contracted 1 Private Military Battalion")
+            st.copy(
+                player = st.player.copy(cashUsd = st.player.cashUsd - cost, cashLocal = (st.player.cashUsd - cost) * home.forexPerUsd),
+                militaryArsenal = st.militaryArsenal.copy(pmcBattalions = st.militaryArsenal.pmcBattalions + 1)
+            )
+        }
+    }
+
+    fun sendDirectMessage(npcId: String, text: String) {
+        if (text.isBlank()) return
+        _uiState.update { st ->
+            val npc = st.npcs.firstOrNull { it.id == npcId } ?: return@update st
+            val playerMsg = DirectMessage(
+                id = "dm_${System.currentTimeMillis()}_p",
+                npcId = npc.id,
+                npcName = npc.name,
+                npcHandle = npc.handle,
+                fromPlayer = true,
+                text = text.trim(),
+                timestampStr = st.date.formatted()
+            )
+            val replyText = when {
+                npc.isHeadOfState -> "Received your dispatch. ${npc.countryIso} chancellery is reviewing bilateral alignment and cabinet priorities."
+                npc.ambition == NpcAmbition.OLIGARCH -> "Interesting proposal. Let's coordinate on B2B liquidity and equity positions next quarter."
+                else -> "Acknowledged @${st.player.handle}. My ${npc.ambition.label} network is tracking your moves in ${npc.countryIso}."
+            }
+            val npcReply = DirectMessage(
+                id = "dm_${System.currentTimeMillis()}_n",
+                npcId = npc.id,
+                npcName = npc.name,
+                npcHandle = npc.handle,
+                fromPlayer = false,
+                text = replyText,
+                timestampStr = st.date.formatted()
+            )
+            st.copy(directMessages = st.directMessages + playerMsg + npcReply)
+        }
+    }
 }

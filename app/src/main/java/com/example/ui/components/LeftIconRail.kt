@@ -19,10 +19,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.NavDestination
@@ -49,69 +49,81 @@ fun LeftIconRail(
         RailItem(NavDestination.WORLD_MAP, Icons.Filled.Public, Icons.Outlined.Public),
         RailItem(NavDestination.ECONOMY, Icons.Filled.AttachMoney, Icons.Outlined.AttachMoney),
         RailItem(NavDestination.ORGANIZATIONS, Icons.Filled.AccountBalance, Icons.Outlined.AccountBalance),
-        RailItem(NavDestination.CONFLICT, Icons.Filled.Shield, Icons.Outlined.Shield),
+        RailItem(NavDestination.CONFLICT, Icons.Filled.LocalFireDepartment, Icons.Outlined.LocalFireDepartment),
         RailItem(NavDestination.INBOX, Icons.Filled.Email, Icons.Outlined.Email, unreadMailCount),
         RailItem(NavDestination.NOTIFICATIONS, Icons.Filled.Notifications, Icons.Outlined.Notifications, unreadAlertsCount),
+        RailItem(NavDestination.AWARDS, Icons.Filled.EmojiEvents, Icons.Outlined.EmojiEvents),
+        RailItem(NavDestination.PERSONAL, Icons.Filled.Badge, Icons.Outlined.Badge),
         RailItem(NavDestination.PROFILE, Icons.Filled.Person, Icons.Outlined.Person),
-        RailItem(NavDestination.MORE, Icons.Filled.Apps, Icons.Outlined.Apps)
+        RailItem(NavDestination.MORE, Icons.Filled.AccountTree, Icons.Outlined.AccountTree)
     )
 
     Column(
         modifier = modifier
-            .width(58.dp)
+            .width(54.dp)
             .fillMaxHeight()
             .background(OledRail)
             .border(width = 1.dp, color = OledBorder)
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(vertical = 6.dp),
+            .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
+        // Top 'W' World Order Monogram Logo
+        Box(
+            modifier = Modifier
+                .testTag("rail_logo_home")
+                .size(44.dp)
+                .minimumInteractiveComponentSize()
+                .clip(RoundedCornerShape(10.dp))
+                .background(OledCard)
+                .border(1.dp, OledBorderHighlight, RoundedCornerShape(10.dp))
+                .clickable { onSelect(NavDestination.HOME) },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "W",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp
+                ),
+                color = TextPrimary
+            )
+        }
+
+        Spacer(Modifier.height(4.dp))
+
         items.forEach { item ->
             val isSelected = currentNav == item.dest || (
                 item.dest == NavDestination.MORE && currentNav in listOf(
                     NavDestination.UNIVERSITY, NavDestination.KNOWLEDGE, NavDestination.RANKING,
-                    NavDestination.SUPRANATIONAL, NavDestination.MARKET, NavDestination.LAWS,
-                    NavDestination.SOCIETY, NavDestination.ADMINISTRATION, NavDestination.SETTINGS
+                    NavDestination.SUPRANATIONAL, NavDestination.MARKET, NavDestination.RULES,
+                    NavDestination.SOCIETY, NavDestination.ADMINISTRATION, NavDestination.TUTORIAL,
+                    NavDestination.SETTINGS
                 )
             )
             Box(
                 modifier = Modifier
                     .testTag("rail_${item.dest.name.lowercase()}")
-                    .size(48.dp)
+                    .size(46.dp)
                     .minimumInteractiveComponentSize()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSelected) AccentCyan.copy(alpha = 0.16f) else OledRail)
+                    .background(if (isSelected) Color(0xFF1A1F24) else OledRail)
                     .border(
                         width = if (isSelected) 1.dp else 0.dp,
-                        color = if (isSelected) AccentCyan.copy(alpha = 0.6f) else OledRail,
+                        color = if (isSelected) AccentGreen.copy(alpha = 0.6f) else Color.Transparent,
                         shape = RoundedCornerShape(10.dp)
                     )
                     .clickable { onSelect(item.dest) },
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                        contentDescription = item.dest.label,
-                        tint = if (isSelected) AccentCyan else TextSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(
-                        text = item.dest.label.take(7),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 8.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        ),
-                        color = if (isSelected) AccentCyan else TextMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip
-                    )
-                }
+                Icon(
+                    imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                    contentDescription = item.dest.label,
+                    tint = if (isSelected) TextPrimary else TextSecondary,
+                    modifier = Modifier.size(21.dp)
+                )
 
                 if (item.badgeCount > 0) {
                     Box(
@@ -134,3 +146,4 @@ fun LeftIconRail(
         }
     }
 }
+

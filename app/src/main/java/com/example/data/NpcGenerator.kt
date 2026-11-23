@@ -515,6 +515,36 @@ object NpcGenerator {
             )
         )
 
+        val initialBonds = listOf(
+            BondOffering("bnd_1", "${homeCountry.name} 30-Day Sovereign Note", homeCountry.iso, true, 5.4, 1_000.0, 30),
+            BondOffering("bnd_2", "U.S. Treasury 60-Day T-Bill", "US", true, 4.6, 2_500.0, 60),
+            BondOffering("bnd_3", "NVIDIA Corp. 45-Day Bond", "US", false, 6.8, 5_000.0, 45),
+            BondOffering("bnd_4", "Reliance Infrastructure Bond", "IN", false, 7.5, 1_500.0, 45),
+            BondOffering("bnd_5", "Airbus Eurozone Green Bond", "FR", false, 5.1, 3_000.0, 60)
+        )
+
+        val initialLoans = listOf(
+            BilateralLoan("loan_1", "${homeCountry.centralBankName}", "LK", 500_000.0, 4.2, 45, "ACTIVE"),
+            BilateralLoan("loan_2", "European Investment Bank", "UA", 1_200_000.0, 3.5, 90, "ACTIVE")
+        )
+
+        val initialPatents = listOf(
+            PatentAsset("pat_1", "Solid-State Battery Cathode", "Energy", hosNpc.id, 12_000.0, 480.0, 3),
+            PatentAsset("pat_2", "Sub-2nm EUV Lithography Mask", "High-Tech", usNpc.id, 28_000.0, 1_150.0, 5)
+        )
+
+        val initialRealEstate = listOf(
+            RealEstateProperty("re_1", "Capital Diplomatic Penthouse", homeCountry.capital, homeCountry.iso, "Penthouse", 18_000.0, 220.0),
+            RealEstateProperty("re_2", "Bandra-Kurla Financial Suite", "Mumbai", "IN", "Commercial Tower", 45_000.0, 620.0),
+            RealEstateProperty("re_3", "Champs-Élysées Sovereign Villa", "Paris", "FR", "Villa", 120_000.0, 1_450.0),
+            RealEstateProperty("re_4", "Manhattan Executive Lofts", "New York", "US", "Commercial Tower", 160_000.0, 2_100.0),
+            RealEstateProperty("re_5", "Gulfstream Long-Range Jet", homeCountry.capital, homeCountry.iso, "Private Jet", 320_000.0, 3_600.0)
+        )
+
+        val initialTx = listOf(
+            BankTransaction("tx_init", "Account Opened (${homeCountry.currencyCode} / USD)", player.cashUsd, "CREDIT", "Nov 23, 2026 • 11:00")
+        )
+
         return GameState(
             campaignStarted = true,
             startingMode = startingMode,
@@ -542,6 +572,11 @@ object NpcGenerator {
             officialMails = initialMail,
             notifications = initialNotifications,
             knowledgeNodes = knowledge,
+            bankTransactions = initialTx,
+            bonds = initialBonds,
+            bilateralLoans = initialLoans,
+            patents = initialPatents,
+            realEstate = initialRealEstate,
             lastEventBanner = "${homeCountry.name} • ${homeCountry.lowerChamberName} in session • ${syncedNpcs.size} AI Pops active"
         )
     }

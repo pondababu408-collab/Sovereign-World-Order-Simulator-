@@ -1,11 +1,14 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,7 +17,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.engine.SimulationEngine
 import com.example.model.*
@@ -44,180 +49,273 @@ fun WorldMapScreen(
         state.provinces.filter { it.countryIso == activeCountry.iso }
     }
 
+    var showSearchOverlay by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
+    var sheetExpanded by remember { mutableStateOf(false) }
     var showSummitDialog by remember { mutableStateOf(false) }
     var summitResult by remember { mutableStateOf<String?>(null) }
+    var focusTrigger by remember { mutableIntStateOf(0) }
 
-    LazyColumn(
+    BackHandler(enabled = sheetExpanded || showSearchOverlay) {
+        if (showSearchOverlay) showSearchOverlay = false
+        else if (sheetExpanded) sheetExpanded = false
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(OledBlack)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        item {
-            OledSectionHeader(
-                title = "Provincial World Map & Diplomacy",
-                subtitle = "Located in ${state.player.currentRegionId} (${state.player.currentCountryIso})",
-                icon = Icons.Filled.Public,
-                accent = AccentCyan
-            )
-        }
+        // Full-bleed interactive GeoJSON Vector World Map
+        WorldMapCanvas(
+            countries = state.countries,
+            provinces = state.provinces,
+            selectedProvinceId = activeProvince.id,
+            selectedCountryIso = activeCountry.iso,
+            homeCountryIso = state.player.countryIso,
+            playerRegionId = state.player.currentRegionId,
+            focusTrigger = focusTrigger,
+            onProvinceTapped = { prov ->
+                onSelectProvince(prov.id)
+                sheetExpanded = true
+            },
+            onCountryTapped = { iso ->
+                onSelectCountry(iso)
+            },
+            onSearchClicked = { showSearchOverlay = !showSearchOverlay },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp)
+        )
 
-        // Interactive Provincial World Map Canvas
-        item {
-            WorldMapCanvas(
-                countries = state.countries,
-                provinces = state.provinces,
-                selectedProvinceId = activeProvince.id,
-                homeCountryIso = state.player.countryIso,
-                playerRegionId = state.player.currentRegionId,
-                onProvinceTapped = { prov -> onSelectProvince(prov.id) }
-            )
-        }
-
-        // Quick Search Countries / Enclaves
-        item {
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { searchText = it },
-                placeholder = { Text("Jump to country or enclave (Andorra, Ceuta, Gibraltar, Singapore, USA...)", style = MaterialTheme.typography.bodySmall) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (searchText.isNotBlank()) {
-                val matches = state.provinces.filter {
-                    it.name.contains(searchText, true) || it.capitalCity.contains(searchText, true) || it.countryIso.equals(searchText, true)
-                }.take(5)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 4.dp)) {
-                    matches.forEach { p ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(OledElevated)
-                                .border(1.dp, OledBorder, RoundedCornerShape(6.dp))
-                                .clickable {
-                                    onSelectProvince(p.id)
-                                    searchText = ""
-                                }
-                                .padding(8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("${p.name} (${p.countryIso})", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                            Text(p.capitalCity, style = MaterialTheme.typography.labelSmall, color = AccentCyan)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Selected Province Inspector
-        item {
-            OledCard(borderColor = AccentCyan.copy(alpha = 0.5f)) {
+        // Floating Search Overlay when Search Circle Button clicked
+        if (showSearchOverlay) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(OledCard.copy(alpha = 0.96f))
+                    .border(1.dp, OledBorderHighlight, RoundedCornerShape(12.dp))
+                    .padding(10.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(activeProvince.name, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                            if (activeProvince.isMicroStateOrEnclave) OledBadge("ENCLAVE/MICRO", AccentGold)
-                        }
-                        Text("Capital: ${activeProvince.capitalCity} • Pops: ${activeProvince.localPopsCount} • Pop: ${String.format("%.2fM", activeProvince.populationMillions)}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                    OledPrimaryButton(
-                        text = if (state.player.currentRegionId == activeProvince.id) "Here" else "Travel",
-                        enabled = state.player.currentRegionId != activeProvince.id,
-                        onClick = { onTravelToRegion(activeProvince.id) }
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        placeholder = { Text("Search any 195+ country, city or enclave...", style = MaterialTheme.typography.bodySmall) },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
                     )
+                    IconButton(onClick = { showSearchOverlay = false; searchText = "" }) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close Search", tint = TextSecondary)
+                    }
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("White Market", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                        Text("${String.format("%.2fx", activeProvince.whiteMarketIndex)} Legal", style = MaterialTheme.typography.labelMedium, color = AccentGreen)
+                val matches = remember(searchText, state.countries, state.provinces) {
+                    if (searchText.isBlank()) {
+                        state.countries.take(6).mapNotNull { c ->
+                            state.provinces.firstOrNull { it.countryIso == c.iso }?.let { c to it }
+                        }
+                    } else {
+                        state.provinces.filter {
+                            it.name.contains(searchText, true) ||
+                                it.capitalCity.contains(searchText, true) ||
+                                it.countryIso.equals(searchText, true)
+                        }.take(8).mapNotNull { p ->
+                            state.countries.firstOrNull { it.iso == p.countryIso }?.let { it to p }
+                        }
                     }
-                    Column {
-                        Text("Black Market", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                        Text("${String.format("%.2fx", activeProvince.blackMarketPremium)} BTC/FX", style = MaterialTheme.typography.labelMedium, color = AccentBitcoin)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Electrical Grid", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                        Text("${activeProvince.powerSupplyMw}/${activeProvince.powerDemandMw} MW", style = MaterialTheme.typography.labelMedium, color = AccentCyan)
+                }
+                Spacer(Modifier.height(6.dp))
+                matches.forEach { (c, p) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                onSelectProvince(p.id)
+                                focusTrigger++
+                                showSearchOverlay = false
+                                sheetExpanded = true
+                                searchText = ""
+                            }
+                            .padding(horizontal = 8.dp, vertical = 7.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OledBadge(c.iso, AccentCyan)
+                            Text("${c.name} • ${p.capitalCity}", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                        }
+                        Text("REL ${c.bilateralRelation}", style = MaterialTheme.typography.labelSmall, color = if (c.bilateralRelation >= 0) AccentGreen else AccentRed)
                     }
                 }
             }
         }
 
-        // Country Profile & Bilateral Diplomacy (-100 to +100)
-        item {
-            val isForeign = activeCountry.iso != state.player.countryIso
-            val canDiplomacy = SimulationEngine.hasPortfolioAccess(state, MinistryTag.FOREIGN_AFFAIRS) ||
-                SimulationEngine.hasPortfolioAccess(state, MinistryTag.HEAD_OF_STATE)
-
-            OledCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("${activeCountry.name} (${activeCountry.iso})", style = MaterialTheme.typography.headlineMedium, color = TextPrimary)
-                        Text("${activeCountry.govType.label} • ${activeCountry.economicSystem.label}", style = MaterialTheme.typography.bodySmall, color = AccentGold)
-                    }
-                    val relCol = when {
-                        activeCountry.bilateralRelation >= 35 -> AccentGreen
-                        activeCountry.bilateralRelation <= -25 -> AccentRed
-                        else -> TextSecondary
-                    }
-                    OledBadge("REL ${activeCountry.bilateralRelation}", relCol)
-                }
-
-                Spacer(Modifier.height(8.dp))
-                Text("Legislature: ${activeCountry.lowerChamberName} / ${activeCountry.upperChamberName}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                Text("Central Bank: ${activeCountry.centralBankName} (${activeCountry.currencyCode} • ${String.format("%.2f", activeCountry.forexPerUsd)}/USD)", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                Text("Intelligence: ${activeCountry.intelAgencyName} • Bloc: ${activeCountry.allianceBloc}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                Text("Agenda: ${activeCountry.nationalAgenda}", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
-
-                Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("GDP: $${String.format("%.1fB", activeCountry.gdpBillionsUsd)}", style = MaterialTheme.typography.labelMedium, color = AccentGreen)
-                    Text("Stability: ${activeCountry.stability}%", style = MaterialTheme.typography.labelMedium, color = TextPrimary)
-                    Text(if (activeCountry.visaExemption) "Visa: EXEMPT" else "Visa: REQUIRED", style = MaterialTheme.typography.labelMedium, color = if (activeCountry.visaExemption) AccentGreen else AccentRed)
-                }
-
-                if (countryProvinces.size > 1) {
-                    Spacer(Modifier.height(8.dp))
-                    Text("Provinces & Enclaves", style = MaterialTheme.typography.labelSmall, color = TextMuted)
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        countryProvinces.take(4).forEach { prov ->
-                            FilterChip(
-                                selected = prov.id == activeProvince.id,
-                                onClick = { onSelectProvince(prov.id) },
-                                label = { Text(prov.capitalCity, style = MaterialTheme.typography.labelSmall) }
+        // Bottom Sleek Country Pill & Expandable Dossier Sheet
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+        ) {
+            if (!sheetExpanded) {
+                Row(
+                    modifier = Modifier
+                        .testTag("map_country_pill")
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(50))
+                        .background(OledCard.copy(alpha = 0.95f))
+                        .border(1.dp, AccentGreen.copy(alpha = 0.7f), RoundedCornerShape(50))
+                        .clickable { sheetExpanded = true }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
+                        OledBadge(activeCountry.iso, AccentGreen)
+                        Column {
+                            Text(
+                                text = activeCountry.name,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${activeProvince.capitalCity} • ${activeCountry.currencyCode} • REL ${activeCountry.bilateralRelation}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextDescription,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
-                }
-
-                if (isForeign) {
-                    Spacer(Modifier.height(10.dp))
-                    OledPrimaryButton(
-                        text = if (canDiplomacy) "Host Bilateral Summit & Counter-Offer" else "Summit Locked ([FOREIGN_AFFAIRS] Required)",
-                        onClick = { showSummitDialog = true },
-                        enabled = canDiplomacy,
-                        modifier = Modifier.fillMaxWidth(),
-                        accent = AccentGold
-                    )
-                }
-            }
-        }
-
-        // Quick Foreign Relations Roster
-        items(state.countries.filter { it.iso != state.player.countryIso }.take(15), key = { it.iso }) { c ->
-            OledCard(onClick = { onSelectCountry(c.iso) }) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("${c.name} (${c.iso})", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                        Text("${c.allianceBloc} • ${c.currencyCode} • SWIFT: ${if (c.swiftConnected) "Active" else "Sanctioned"}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Inspect", style = MaterialTheme.typography.labelMedium, color = AccentGreen)
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Expand Country Dossier", tint = AccentGreen)
                     }
-                    OledBadge("REL ${c.bilateralRelation}", if (c.bilateralRelation >= 30) AccentGreen else if (c.bilateralRelation < 0) AccentRed else TextSecondary)
+                }
+            } else {
+                val isForeign = activeCountry.iso != state.player.countryIso
+                val canDiplomacy = SimulationEngine.hasPortfolioAccess(state, MinistryTag.FOREIGN_AFFAIRS) ||
+                    SimulationEngine.hasPortfolioAccess(state, MinistryTag.HEAD_OF_STATE)
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 430.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(OledCard.copy(alpha = 0.97f))
+                        .border(1.dp, AccentGreen.copy(alpha = 0.65f), RoundedCornerShape(14.dp))
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                            OledBadge(activeCountry.iso, AccentGreen)
+                            Column {
+                                Text(activeCountry.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
+                                Text("${activeCountry.govType.label} • ${activeCountry.economicSystem.label}", style = MaterialTheme.typography.labelSmall, color = AccentGold)
+                            }
+                        }
+                        IconButton(onClick = { sheetExpanded = false }) {
+                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Collapse Dossier", tint = TextSecondary)
+                        }
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item {
+                            OledCard(containerColor = OledElevated) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text("${activeProvince.name} (${activeProvince.capitalCity})", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                                            if (activeProvince.isMicroStateOrEnclave) OledBadge("ENCLAVE", AccentGold)
+                                        }
+                                        Text("Pop: ${String.format("%.2fM", activeProvince.populationMillions)} • White ${String.format("%.2fx", activeProvince.whiteMarketIndex)} • Black ${String.format("%.2fx", activeProvince.blackMarketPremium)}", style = MaterialTheme.typography.labelSmall, color = TextDescription)
+                                        Text("Grid: ${activeProvince.powerSupplyMw}/${activeProvince.powerDemandMw} MW", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
+                                    }
+                                    OledPrimaryButton(
+                                        text = if (state.player.currentRegionId == activeProvince.id) "Here" else "Travel",
+                                        enabled = state.player.currentRegionId != activeProvince.id,
+                                        onClick = { onTravelToRegion(activeProvince.id) },
+                                        accent = AccentGreen
+                                    )
+                                }
+                            }
+                        }
+
+                        if (countryProvinces.size > 1) {
+                            item {
+                                Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    countryProvinces.forEach { prov ->
+                                        FilterChip(
+                                            selected = prov.id == activeProvince.id,
+                                            onClick = { onSelectProvince(prov.id) },
+                                            label = { Text(prov.capitalCity, style = MaterialTheme.typography.labelSmall) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            OledCard(containerColor = OledElevated) {
+                                Text("Legislature: ${activeCountry.lowerChamberName} / ${activeCountry.upperChamberName}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                Text("Central Bank: ${activeCountry.centralBankName} (${activeCountry.currencyCode} • ${String.format("%.2f", activeCountry.forexPerUsd)}/USD)", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                Text("Intel: ${activeCountry.intelAgencyName} • Bloc: ${activeCountry.allianceBloc}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                                Text("Agenda: ${activeCountry.nationalAgenda}", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
+                                Spacer(Modifier.height(6.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("GDP: $${String.format("%.1fB", activeCountry.gdpBillionsUsd)}", style = MaterialTheme.typography.labelMedium, color = AccentGreen)
+                                    Text("Stability: ${activeCountry.stability}%", style = MaterialTheme.typography.labelMedium, color = TextPrimary)
+                                    Text(if (activeCountry.visaExemption) "Visa: EXEMPT" else "Visa: REQUIRED", style = MaterialTheme.typography.labelMedium, color = if (activeCountry.visaExemption) AccentGreen else AccentRed)
+                                }
+                            }
+                        }
+
+                        if (isForeign) {
+                            item {
+                                OledPrimaryButton(
+                                    text = if (canDiplomacy) "Host Bilateral Summit & Counter-Offer" else "Summit Locked ([FOREIGN_AFFAIRS] Required)",
+                                    onClick = { showSummitDialog = true },
+                                    enabled = canDiplomacy,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    accent = AccentGold
+                                )
+                            }
+                        }
+
+                        item { Text("Quick Bilateral Switch", style = MaterialTheme.typography.labelSmall, color = TextMuted) }
+                        items(state.countries.filter { it.iso != state.player.countryIso }.take(12), key = { it.iso }) { c ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(OledElevated)
+                                    .border(1.dp, OledBorder, RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        onSelectCountry(c.iso)
+                                        focusTrigger++
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("${c.name} (${c.iso}) • ${c.allianceBloc}", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                                OledBadge("REL ${c.bilateralRelation}", if (c.bilateralRelation >= 30) AccentGreen else if (c.bilateralRelation < 0) AccentRed else TextSecondary)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -283,3 +381,4 @@ private fun SummitToggle(label: String, checked: Boolean, onCheckedChange: (Bool
         Text(label, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
     }
 }
+

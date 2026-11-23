@@ -1,37 +1,59 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Business
-import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.model.*
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import kotlin.math.roundToInt
 
+enum class EconomySubRoute(
+    val title: String,
+    val description: String,
+    val icon: ImageVector,
+    val accent: Color
+) {
+    ONLINE_BANKING("Online banking", "Bank accounts, wire ledger, reserves & SWIFT status.", Icons.Filled.AccountBalance, AccentGreen),
+    STOCKS("Stocks", "Global stock market, charts, order books & >50% control.", Icons.AutoMirrored.Filled.ShowChart, AccentCyan),
+    BILATERAL_DEBT("Bilateral debt", "Manage financial assets, sovereign loans & credit portfolio.", Icons.Filled.RequestQuote, AccentGold),
+    BONDS("Bonds", "Sovereign & corporate bonds with yields and maturities.", Icons.AutoMirrored.Filled.ReceiptLong, AccentGreen),
+    B2B_PLATFORM("B2B platform", "Wholesale trade, founding firms & 3-tier power grid contracts.", Icons.Filled.PrecisionManufacturing, AccentCyan),
+    B2C_MARKET("B2C market", "Regional White & Black markets in Legal Tender or Bitcoin.", Icons.Filled.Storefront, AccentBitcoin),
+    MARKET_SHARE("Market share", "Weekly & monthly seller ranking across top enterprises.", Icons.Filled.PieChart, AccentPurple),
+    FOREIGN_EXCHANGE("Foreign exchange", "Live Forex currency pairs & cross-border swaps.", Icons.Filled.CurrencyExchange, AccentCyan),
+    CRYPTO_EXCHANGE("Crypto exchange", "Decentralized Bitcoin wallet & untraceable trading.", Icons.Filled.CurrencyBitcoin, AccentBitcoin),
+    DERIVATIVES("Derivatives", "Leveraged futures, calls, puts & short-selling contracts.", Icons.Filled.CandlestickChart, AccentPurple),
+    INTELLECTUAL_PROPERTY("Intellectual property", "Register R&D patents and earn daily royalties.", Icons.Filled.Lightbulb, AccentGold),
+    FORBES_100("Forbes 100", "Live ranking of the 100 wealthiest players & AI NPCs.", Icons.Filled.EmojiEvents, AccentGold)
+}
+
 @Composable
 fun EconomyScreen(
     state: GameState,
-    initialTab: Int = 0, // 0: LinkedOut, 1: Businesses, 2: Markets, 3: Stocks, 4: Grid, 5: Central Bank, 6: Central Planning
-    onApplyJob: (String) -> Unit,
+    initialSubRoute: EconomySubRoute? = null,
     onFoundCompany: (String, BusinessType, PowerFuel?) -> Unit,
     onHireNpc: (String, String) -> Unit,
     onBuyStock: (String, Long) -> Unit,
@@ -41,125 +63,112 @@ fun EconomyScreen(
     onBuildSubstationOrUpgrade: (String) -> Unit,
     onBuildTransmission: (String, String, String) -> Unit,
     onUpdateCentralBank: (Double, Double, Double, Boolean) -> Unit,
-    onUpdatePlanning: (Int, Double, Double) -> Unit
+    onBuyBond: (String) -> Unit,
+    onIssueBilateralLoan: (String, Double) -> Unit,
+    onOpenDerivative: (String, String, Double, Int) -> Unit,
+    onCloseDerivative: (String) -> Unit,
+    onRegisterPatent: (String, String) -> Unit,
+    onSwapForex: (String, Double) -> Unit
 ) {
-    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
-    val tabs = listOf("LinkedOut", "Businesses", "Markets", "Stocks", "Grid", "Central Bank", "Planning")
+    var activeSub by remember(initialSubRoute) { mutableStateOf(initialSubRoute) }
+
+    BackHandler(enabled = activeSub != null) {
+        activeSub = null
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(OledBlack)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        OledSectionHeader(
-            title = "worldorder.app/economy",
-            subtitle = "Cash: ${formatUsd(state.player.cashUsd)} • ₿ ${String.format("%.4f", state.player.bitcoinBalance)}",
-            icon = Icons.Filled.AttachMoney,
-            accent = AccentGreen
-        )
+        if (activeSub == null) {
+            WorldOrderHubHeader(
+                title = "Economy",
+                quote = "\"If I owe you a pound, I have a problem; But if I owe you a million, the problem is yours.\" - John Maynard Keynes"
+            )
 
-        Spacer(Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            tabs.forEachIndexed { idx, label ->
-                val active = selectedTab == idx
-                Box(
-                    modifier = Modifier
-                        .testTag("econ_tab_${label.lowercase().replace(" ", "_")}")
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (active) AccentCyan.copy(alpha = 0.16f) else OledCard)
-                        .border(1.dp, if (active) AccentCyan else OledBorder, RoundedCornerShape(6.dp))
-                        .clickable { selectedTab = idx }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (active) FontWeight.Bold else FontWeight.Normal),
-                        color = if (active) AccentCyan else TextSecondary
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(EconomySubRoute.entries, key = { it.name }) { route ->
+                    HubMenuCard(
+                        title = route.title,
+                        description = route.description,
+                        icon = route.icon,
+                        accent = route.accent,
+                        onClick = { activeSub = route },
+                        modifier = Modifier.testTag("econ_card_${route.name.lowercase()}")
                     )
                 }
             }
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        Box(modifier = Modifier.weight(1f)) {
-            when (selectedTab) {
-                0 -> LinkedOutJobsTab(state, onApplyJob)
-                1 -> BusinessesTab(state, onFoundCompany, onHireNpc)
-                2 -> MarketsAndContractsTab(state, onSellCommodity, onCreateContract)
-                3 -> StockMarketTab(state, onBuyStock, onSellStock)
-                4 -> ElectricalGridTab(state, onBuildSubstationOrUpgrade, onBuildTransmission)
-                5 -> CentralBankTab(state, onUpdateCentralBank)
-                6 -> CentralPlanningTab(state, onUpdatePlanning)
-            }
-        }
-    }
-}
-
-@Composable
-private fun LinkedOutJobsTab(state: GameState, onApplyJob: (String) -> Unit) {
-    val homeJobs = state.jobListings.filter { it.countryIso == state.player.countryIso }
-    val globalJobs = state.jobListings.filter { it.countryIso != state.player.countryIso }.take(20)
-    val workerScore = (state.player.efficiency + state.player.intelligence) / 2.0
-
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item {
-            OledCard(borderColor = AccentCyan.copy(alpha = 0.5f)) {
-                OledSectionHeader("LinkedOut Career Network", "Daily salary scales with Efficiency (${state.player.efficiency}) & Intelligence (${state.player.intelligence})", Icons.Filled.Work)
-                Spacer(Modifier.height(4.dp))
-                val activeJob = state.jobListings.firstOrNull { it.id == state.player.currentJobId }
-                if (activeJob != null) {
-                    val estPay = activeJob.salaryPerPointUsd * workerScore
-                    Text("Current Role: ${activeJob.roleTitle} at ${activeJob.companyName}", style = MaterialTheme.typography.titleSmall, color = AccentGreen)
-                    Text("Estimated Daily Pay: ${formatUsd(estPay)}/day", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
-                } else {
-                    Text("Unemployed • Starting at 0.00? Apply to any position below to earn daily income.", style = MaterialTheme.typography.bodySmall, color = AccentGold)
-                }
-            }
-        }
-        item { Text("Domestic Positions (${state.player.countryIso})", style = MaterialTheme.typography.titleSmall, color = TextPrimary) }
-        items(homeJobs, key = { it.id }) { job ->
-            JobRow(job, workerScore, state.player.currentJobId == job.id, onApplyJob)
-        }
-        item { Text("International Positions", style = MaterialTheme.typography.titleSmall, color = TextSecondary) }
-        items(globalJobs, key = { it.id }) { job ->
-            JobRow(job, workerScore, state.player.currentJobId == job.id, onApplyJob)
-        }
-    }
-}
-
-@Composable
-private fun JobRow(job: JobListing, workerScore: Double, isCurrent: Boolean, onApply: (String) -> Unit) {
-    val dailyPay = job.salaryPerPointUsd * workerScore
-    OledCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(job.roleTitle, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                    if (job.isStateJob) OledBadge("SOE", AccentGold)
-                }
-                Text("${job.companyName} (${job.countryIso})", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                Text("Pay: $${String.format("%.2f", job.salaryPerPointUsd)}/pt (~${formatUsd(dailyPay)}/day) • Min INT ${job.minIntelligence}", style = MaterialTheme.typography.labelSmall, color = AccentCyan)
-            }
-            OledPrimaryButton(
-                text = if (isCurrent) "Active" else "Apply",
-                enabled = !isCurrent,
-                onClick = { onApply(job.id) },
-                accent = if (isCurrent) AccentGreen else AccentCyan
+        } else {
+            WorldOrderHubHeader(
+                title = activeSub!!.title,
+                quote = "Cash: ${formatUsd(state.player.cashUsd)} • ₿ ${String.format("%.4f", state.player.bitcoinBalance)}",
+                onBack = { activeSub = null }
             )
+
+            Box(modifier = Modifier.weight(1f)) {
+                when (activeSub!!) {
+                    EconomySubRoute.ONLINE_BANKING -> OnlineBankingSubScreen(state, onUpdateCentralBank)
+                    EconomySubRoute.STOCKS -> StocksSubScreen(state, onBuyStock, onSellStock)
+                    EconomySubRoute.BILATERAL_DEBT -> BilateralDebtSubScreen(state, onIssueBilateralLoan)
+                    EconomySubRoute.BONDS -> BondsSubScreen(state, onBuyBond)
+                    EconomySubRoute.B2B_PLATFORM -> B2BPlatformSubScreen(
+                        state = state,
+                        onFoundCompany = onFoundCompany,
+                        onHireNpc = onHireNpc,
+                        onCreateContract = onCreateContract,
+                        onBuildSubstationOrUpgrade = onBuildSubstationOrUpgrade,
+                        onBuildTransmission = onBuildTransmission
+                    )
+                    EconomySubRoute.B2C_MARKET -> B2CMarketSubScreen(state, onSellCommodity)
+                    EconomySubRoute.MARKET_SHARE -> MarketShareSubScreen(state)
+                    EconomySubRoute.FOREIGN_EXCHANGE -> ForexSubScreen(state, onSwapForex)
+                    EconomySubRoute.CRYPTO_EXCHANGE -> CryptoExchangeSubScreen(state, onBuyStock, onSellStock)
+                    EconomySubRoute.DERIVATIVES -> DerivativesSubScreen(state, onOpenDerivative, onCloseDerivative)
+                    EconomySubRoute.INTELLECTUAL_PROPERTY -> IntellectualPropertySubScreen(state, onRegisterPatent)
+                    EconomySubRoute.FORBES_100 -> Forbes100SubScreen(state)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun BusinessesTab(
+private fun B2BPlatformSubScreen(
+    state: GameState,
+    onFoundCompany: (String, BusinessType, PowerFuel?) -> Unit,
+    onHireNpc: (String, String) -> Unit,
+    onCreateContract: (String, CommodityGood, Int, Double, Boolean) -> Unit,
+    onBuildSubstationOrUpgrade: (String) -> Unit,
+    onBuildTransmission: (String, String, String) -> Unit
+) {
+    var mode by remember { mutableIntStateOf(0) } // 0: My Businesses, 1: Wholesale Contracts, 2: Grid Ops
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = mode == 0, onClick = { mode = 0 }, label = { Text("Enterprises") })
+            FilterChip(selected = mode == 1, onClick = { mode = 1 }, label = { Text("B2B Contracts") })
+            FilterChip(selected = mode == 2, onClick = { mode = 2 }, label = { Text("Grid Deals") })
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(modifier = Modifier.weight(1f)) {
+            when (mode) {
+                0 -> BusinessesPanel(state, onFoundCompany, onHireNpc)
+                1 -> WholesaleContractsPanel(state, onCreateContract)
+                else -> ElectricalGridTab(state, onBuildSubstationOrUpgrade, onBuildTransmission)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessesPanel(
     state: GameState,
     onFoundCompany: (String, BusinessType, PowerFuel?) -> Unit,
     onHireNpc: (String, String) -> Unit
@@ -174,7 +183,8 @@ private fun BusinessesTab(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             OledCard {
-                OledSectionHeader("Found New Enterprise", "Start Farms, Mines, Fabs, Banks, Media or Power Plants", Icons.Filled.Business, AccentGold)
+                Text("Found New Enterprise", style = MaterialTheme.typography.titleSmall, color = AccentGold)
+                Text("Start Farms, Mines, Fabs, Banks, Media or Power Plants.", style = MaterialTheme.typography.bodySmall, color = TextDescription)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = bizName,
@@ -227,7 +237,7 @@ private fun BusinessesTab(
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("${comp.name} [${comp.ticker}]", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                        Text("${comp.type.displayName} • Eff ${comp.efficiency} • ${comp.employeesCount} Staff", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("${comp.type.displayName} • Eff ${comp.efficiency} • ${comp.employeesCount} Staff", style = MaterialTheme.typography.bodySmall, color = TextDescription)
                         Text("Valuation: ${formatUsd(comp.valuationUsd)} • Daily Profit: ${formatUsd(comp.dailyProfitUsd)}", style = MaterialTheme.typography.labelSmall, color = AccentGreen)
                     }
                     OledOutlinedButton("Hire NPC", { hireTargetCompanyId = comp.id })
@@ -241,7 +251,7 @@ private fun BusinessesTab(
         AlertDialog(
             onDismissRequest = { hireTargetCompanyId = null },
             containerColor = OledCard,
-            title = { Text("Recruit High/Low-Trait AI Citizens", style = MaterialTheme.typography.titleMedium, color = TextPrimary) },
+            title = { Text("Recruit AI Citizens", style = MaterialTheme.typography.titleMedium, color = TextPrimary) },
             text = {
                 LazyColumn(modifier = Modifier.height(300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(candidates, key = { it.id }) { npc ->
@@ -272,14 +282,11 @@ private fun BusinessesTab(
 }
 
 @Composable
-private fun MarketsAndContractsTab(
+private fun WholesaleContractsPanel(
     state: GameState,
-    onSellCommodity: (CommodityGood, Int, Boolean, Boolean) -> Unit,
     onCreateContract: (String, CommodityGood, Int, Double, Boolean) -> Unit
 ) {
-    val prov = state.provinces.firstOrNull { it.id == state.player.currentRegionId }
     var isBlackMarket by remember { mutableStateOf(false) }
-    var settleBitcoin by remember { mutableStateOf(true) }
     var targetIso by remember { mutableStateOf("US") }
     var customPriceStr by remember { mutableStateOf("250") }
     var selectedGood by remember { mutableStateOf(CommodityGood.GRAIN) }
@@ -287,9 +294,73 @@ private fun MarketsAndContractsTab(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
             OledCard {
+                Text("Negotiate Wholesale B2B Contract", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = targetIso,
+                        onValueChange = { targetIso = it.uppercase().take(3) },
+                        label = { Text("Partner ISO") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = customPriceStr,
+                        onValueChange = { customPriceStr = it },
+                        label = { Text("Price $/u") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CommodityGood.entries.forEach { g ->
+                        FilterChip(
+                            selected = selectedGood == g,
+                            onClick = { selectedGood = g; customPriceStr = g.basePriceUsd.roundToInt().toString() },
+                            label = { Text("${g.name} (${state.playerInventory[g.name] ?: 0})", style = MaterialTheme.typography.labelSmall) }
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isBlackMarket, onCheckedChange = { isBlackMarket = it })
+                    Text("Smuggle via Black Market (Settle in BTC)", style = MaterialTheme.typography.bodySmall, color = AccentBitcoin)
+                }
+                OledPrimaryButton(
+                    text = "Sign 5-Day Contract (10 units)",
+                    onClick = {
+                        val p = customPriceStr.toDoubleOrNull() ?: selectedGood.basePriceUsd
+                        onCreateContract(targetIso, selectedGood, 10, p, isBlackMarket)
+                    },
+                    enabled = (state.playerInventory[selectedGood.name] ?: 0) >= 10,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        items(state.contracts, key = { it.id }) { c ->
+            OledCard {
+                Text("${c.sellerCountryIso} → ${c.buyerCountryIso}: ${c.quantity} ${c.good.displayName} @ ${formatUsd(c.unitPriceUsd)}", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                Text("Status: ${c.status} • ${c.activeDaysRemaining}d left • ${if (c.settleInBitcoin) "BTC Settlement" else "Forex Wire"}", style = MaterialTheme.typography.labelSmall, color = AccentGold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun B2CMarketSubScreen(
+    state: GameState,
+    onSellCommodity: (CommodityGood, Int, Boolean, Boolean) -> Unit
+) {
+    val prov = state.provinces.firstOrNull { it.id == state.player.currentRegionId }
+    var isBlackMarket by remember { mutableStateOf(false) }
+    var settleBitcoin by remember { mutableStateOf(true) }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            OledCard {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
-                        Text("Regional Market: ${prov?.capitalCity ?: state.player.currentRegionId}", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                        Text("Regional Retail: ${prov?.capitalCity ?: state.player.currentRegionId}", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
                         Text(if (isBlackMarket) "Black Market (${String.format("%.2fx", prov?.blackMarketPremium ?: 1.35)} premium)" else "White Market (${String.format("%.2fx", prov?.whiteMarketIndex ?: 1.0)} legal tender)", style = MaterialTheme.typography.bodySmall, color = if (isBlackMarket) AccentBitcoin else AccentGreen)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -325,121 +396,6 @@ private fun MarketsAndContractsTab(
                 }
             }
         }
-
-        item {
-            OledCard {
-                Text("Negotiate International Trade Contract", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = targetIso,
-                        onValueChange = { targetIso = it.uppercase().take(3) },
-                        label = { Text("Partner ISO") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    OutlinedTextField(
-                        value = customPriceStr,
-                        onValueChange = { customPriceStr = it },
-                        label = { Text("Negotiated $/u") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CommodityGood.entries.forEach { g ->
-                        FilterChip(selected = selectedGood == g, onClick = { selectedGood = g; customPriceStr = g.basePriceUsd.roundToInt().toString() }, label = { Text(g.name, style = MaterialTheme.typography.labelSmall) })
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
-                OledPrimaryButton(
-                    text = "Sign 5-Day Contract (10 units)",
-                    onClick = {
-                        val p = customPriceStr.toDoubleOrNull() ?: selectedGood.basePriceUsd
-                        onCreateContract(targetIso, selectedGood, 10, p, isBlackMarket)
-                    },
-                    enabled = (state.playerInventory[selectedGood.name] ?: 0) >= 10,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        items(state.contracts, key = { it.id }) { c ->
-            OledCard {
-                Text("${c.sellerCountryIso} → ${c.buyerCountryIso}: ${c.quantity} ${c.good.displayName} @ ${formatUsd(c.unitPriceUsd)}", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                Text("Status: ${c.status} • ${c.activeDaysRemaining}d left • ${if (c.settleInBitcoin) "BTC Settlement" else "Forex Wire"}", style = MaterialTheme.typography.labelSmall, color = AccentGold)
-            }
-        }
     }
 }
 
-@Composable
-private fun StockMarketTab(
-    state: GameState,
-    onBuyStock: (String, Long) -> Unit,
-    onSellStock: (String, Long) -> Unit
-) {
-    var selectedTicker by remember { mutableStateOf(state.stocks.firstOrNull()?.ticker ?: "RELIANCE") }
-    val selectedStock = state.stocks.firstOrNull { it.ticker == selectedTicker } ?: state.stocks.first()
-
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item {
-            OledCard(borderColor = AccentCyan.copy(alpha = 0.5f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CorporateLogo(selectedStock.ticker, size = 42.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("${selectedStock.name} ($${selectedStock.ticker})", style = MaterialTheme.typography.titleMedium, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (selectedStock.hasMajorityControl) OledBadge(">50% CONTROL", AccentGold)
-                        }
-                        Text("${selectedStock.sector} • Div ${selectedStock.dividendYieldPct}% • Held: ${selectedStock.playerShares} (${String.format("%.2f%%", selectedStock.playerOwnershipPct)})", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(formatUsd(selectedStock.currentPriceUsd), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
-                        val chg = selectedStock.changePct
-                        Text("${if (chg >= 0) "+" else ""}${String.format("%.2f%%", chg)}", style = MaterialTheme.typography.labelSmall, color = if (chg >= 0) AccentGreen else AccentRed)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                StockChartCanvas(candles = selectedStock.candles)
-                Spacer(Modifier.height(6.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Order Book Bid: ${formatUsd(selectedStock.bidPriceUsd)}", style = MaterialTheme.typography.labelSmall, color = AccentGreen)
-                    Text("Order Book Ask: ${formatUsd(selectedStock.askPriceUsd)}", style = MaterialTheme.typography.labelSmall, color = AccentRed)
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OledPrimaryButton("Buy 1", { onBuyStock(selectedStock.ticker, 1) }, Modifier.weight(1f), accent = AccentGreen)
-                    OledPrimaryButton("Buy 25", { onBuyStock(selectedStock.ticker, 25) }, Modifier.weight(1f), accent = AccentCyan)
-                    OledOutlinedButton("Sell 1", { onSellStock(selectedStock.ticker, 1) }, Modifier.weight(1f), accent = AccentRed)
-                }
-            }
-        }
-
-        items(state.stocks, key = { it.ticker }) { asset ->
-            val chg = asset.changePct
-            OledCard(
-                borderColor = if (asset.ticker == selectedTicker) AccentCyan else OledBorder,
-                onClick = { selectedTicker = asset.ticker }
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CorporateLogo(asset.ticker, size = 34.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(asset.name, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                            if (asset.hasMajorityControl) OledBadge("MAJORITY", AccentGold)
-                        }
-                        Text("${asset.ticker} • ${asset.countryIso} • Held: ${asset.playerShares}", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(formatUsd(asset.currentPriceUsd), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = TextPrimary)
-                        Text("${if (chg >= 0) "+" else ""}${String.format("%.2f%%", chg)}", style = MaterialTheme.typography.labelSmall, color = if (chg >= 0) AccentGreen else AccentRed)
-                    }
-                }
-            }
-        }
-    }
-}

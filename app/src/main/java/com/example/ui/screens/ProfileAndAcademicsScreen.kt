@@ -1,25 +1,113 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.model.*
 import com.example.ui.components.*
 import com.example.ui.theme.*
+
+private enum class PersonalSubRoute(
+    val title: String,
+    val description: String,
+    val icon: ImageVector,
+    val accent: Color
+) {
+    PROFILE_WORK("Profile & Work Discipline", "Daily Streak, Single-Slot Training & Political Identity.", Icons.Filled.Person, AccentCyan),
+    UNIVERSITY("University (400 Energy)", "Study 5 faculties or boost with ⚡ Araucita gems.", Icons.Filled.School, AccentGreen),
+    KNOWLEDGE("Knowledge Tree", "20-day Masteries & 15-day repeatable specializations.", Icons.Filled.Psychology, AccentPurple),
+    ASSETS_REAL_ESTATE("Assets & Real Estate", "Acquire penthouses, estates & track sovereign yields.", Icons.Filled.Apartment, AccentGold),
+    NOBLE_TITLES("Noble Titles & Honors", "Dignities, state decorations & diplomatic prestige.", Icons.Filled.EmojiEvents, AccentGold)
+}
+
+@Composable
+fun PersonalHubScreen(
+    state: GameState,
+    onClaimWorkDiscipline: () -> Unit,
+    onStartTraining: (StatType) -> Unit,
+    onStudy: (UniversityFaculty) -> Unit,
+    onBoostAraucitas: (UniversityFaculty) -> Unit,
+    onStartResearch: (String) -> Unit,
+    onBuyRealEstate: (String) -> Unit
+) {
+    var activeSub by remember { mutableStateOf<PersonalSubRoute?>(null) }
+
+    BackHandler(enabled = activeSub != null) {
+        activeSub = null
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(OledBlack)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        if (activeSub == null) {
+            WorldOrderHubHeader(
+                title = "Personal",
+                quote = "\"You have power over your mind - not outside events.\" - Marcus Aurelius"
+            )
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(PersonalSubRoute.entries, key = { it.name }) { route ->
+                    HubMenuCard(
+                        title = route.title,
+                        description = route.description,
+                        icon = route.icon,
+                        accent = route.accent,
+                        onClick = { activeSub = route },
+                        modifier = Modifier.testTag("personal_card_${route.name.lowercase()}")
+                    )
+                }
+            }
+        } else {
+            WorldOrderHubHeader(
+                title = activeSub!!.title,
+                quote = "${state.player.name} • Lv.${state.player.level} • ${state.player.araucitas} Araucitas",
+                onBack = { activeSub = null }
+            )
+            Box(modifier = Modifier.weight(1f)) {
+                when (activeSub!!) {
+                    PersonalSubRoute.PROFILE_WORK -> ProfileScreen(
+                        state = state,
+                        onClaimWorkDiscipline = onClaimWorkDiscipline,
+                        onStartTraining = onStartTraining,
+                        onOpenUniversity = { activeSub = PersonalSubRoute.UNIVERSITY },
+                        onOpenKnowledge = { activeSub = PersonalSubRoute.KNOWLEDGE }
+                    )
+                    PersonalSubRoute.UNIVERSITY -> UniversityScreen(state, onStudy, onBoostAraucitas)
+                    PersonalSubRoute.KNOWLEDGE -> KnowledgeTreeScreen(state, onStartResearch)
+                    PersonalSubRoute.ASSETS_REAL_ESTATE -> RealEstateSubScreen(state, onBuyRealEstate)
+                    PersonalSubRoute.NOBLE_TITLES -> AwardsScreen(state)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun ProfileScreen(
@@ -41,7 +129,6 @@ fun ProfileScreen(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Cover Banner & Executive Identity
         item {
             OledCard {
                 Box(
@@ -81,7 +168,6 @@ fun ProfileScreen(
             }
         }
 
-        // Daily Work Discipline (Disciplina de trabajo) & Streak (Racha)
         item {
             OledCard(borderColor = AccentGold.copy(alpha = 0.5f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -100,7 +186,6 @@ fun ProfileScreen(
             }
         }
 
-        // Single-Slot Stat Training
         item {
             OledCard {
                 OledSectionHeader("Single-Slot Stat Training", "Train one attribute at a time with real-time countdown", Icons.Filled.FitnessCenter, AccentCyan)
@@ -135,7 +220,6 @@ fun ProfileScreen(
             }
         }
 
-        // Quick Academic Launchers
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OledPrimaryButton("Universidad (${p.energy}E)", onOpenUniversity, Modifier.weight(1f), accent = AccentCyan)
@@ -143,7 +227,6 @@ fun ProfileScreen(
             }
         }
 
-        // Attributes, Ideologies, Offices, Party & Noble Titles
         item {
             OledCard {
                 Text("Attributes & Ideologies", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
@@ -161,6 +244,90 @@ fun ProfileScreen(
                 Spacer(Modifier.height(6.dp))
                 Text("Political Party: ${party?.name ?: "Independent"}", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                 Text("Noble Titles: ${if (p.nobleTitles.isEmpty()) "None" else p.nobleTitles.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = AccentPurple)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RealEstateSubScreen(state: GameState, onBuyRealEstate: (String) -> Unit) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            OledCard {
+                Text("Private Real Estate & Sovereign Assets", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                Text("Bank Cash: ${formatUsd(state.player.cashUsd)} • Cold Wallet: ₿ ${String.format("%.4f", state.player.bitcoinBalance)}", style = MaterialTheme.typography.bodySmall, color = AccentCyan)
+            }
+        }
+        items(state.realEstate, key = { it.id }) { prop ->
+            OledCard(borderColor = if (prop.owned) AccentGreen.copy(alpha = 0.5f) else OledBorder) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(prop.name, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                            OledBadge(prop.category, AccentGold)
+                        }
+                        Text("${prop.city}, ${prop.countryIso} • Price: ${formatUsd(prop.priceUsd)}", style = MaterialTheme.typography.bodySmall, color = TextDescription)
+                        Text("Daily Yield: +${formatUsd(prop.dailyYieldUsd)}/day", style = MaterialTheme.typography.labelSmall, color = AccentGreen)
+                    }
+                    OledPrimaryButton(
+                        text = if (prop.owned) "Owned" else "Acquire",
+                        enabled = !prop.owned && state.player.cashUsd >= prop.priceUsd,
+                        onClick = { onBuyRealEstate(prop.id) },
+                        accent = if (prop.owned) AccentGreen else AccentGold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AwardsScreen(state: GameState) {
+    val p = state.player
+    val ownedCompanies = state.companies.count { it.ownerId == p.id }
+    val ownedProps = state.realEstate.count { it.owned }
+    val milestones = listOf(
+        Triple("Self-Made Industrialist", "Found or acquire your first corporation", ownedCompanies > 0),
+        Triple("Disciplined Executive", "Reach a 3+ day Work Discipline streak", p.workStreak >= 3),
+        Triple("Sovereign Property Owner", "Acquire luxury real estate or industrial estate", ownedProps > 0),
+        Triple("Cabinet Statesperson", "Hold a national Ministry or Central Bank office", p.officesHeld.isNotEmpty()),
+        Triple("Noble Aristocracy", "Receive an official Noble Title decree", p.nobleTitles.isNotEmpty())
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(OledBlack)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        WorldOrderHubHeader(
+            title = "Awards",
+            quote = "\"Honors are the shadow of virtue and statecraft.\""
+        )
+        LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (p.nobleTitles.isNotEmpty()) {
+                item {
+                    OledCard(borderColor = AccentGold.copy(alpha = 0.6f)) {
+                        Text("Conferred Noble Titles", style = MaterialTheme.typography.titleSmall, color = AccentGold)
+                        Spacer(Modifier.height(4.dp))
+                        p.nobleTitles.forEach { title ->
+                            Text("• $title", style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                        }
+                    }
+                }
+            }
+            items(milestones, key = { it.first }) { (title, desc, unlocked) ->
+                OledCard(borderColor = if (unlocked) AccentGreen.copy(alpha = 0.5f) else OledBorder) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.EmojiEvents, contentDescription = title, tint = if (unlocked) AccentGold else TextMuted, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(title, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                            Text(desc, style = MaterialTheme.typography.bodySmall, color = TextDescription)
+                        }
+                        OledBadge(if (unlocked) "UNLOCKED" else "LOCKED", if (unlocked) AccentGreen else TextMuted)
+                    }
+                }
             }
         }
     }
@@ -289,3 +456,4 @@ fun KnowledgeTreeScreen(
         }
     }
 }
+

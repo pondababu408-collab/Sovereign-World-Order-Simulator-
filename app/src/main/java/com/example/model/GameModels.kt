@@ -9,19 +9,22 @@ enum class NavDestination(val label: String) {
     ECONOMY("Economy"),
     ORGANIZATIONS("Orgs"),
     CONFLICT("Conflict"),
-    INBOX("Correo"),
+    INBOX("Messages"),
     NOTIFICATIONS("Alerts"),
-    PROFILE("Perfil"),
+    AWARDS("Awards"),
+    PERSONAL("Personal"),
+    PROFILE("Profile"),
     MORE("More"),
-    // Sub-destinations accessible from More 4-Column Grid or contextual buttons
-    UNIVERSITY("Universidad"),
-    KNOWLEDGE("Conocimiento"),
+    // Sub-destinations accessible from More 4x4 Grid or contextual buttons
+    UNIVERSITY("University"),
+    KNOWLEDGE("Knowledge"),
     RANKING("Ranking"),
     SUPRANATIONAL("Supranational"),
     MARKET("Market"),
-    LAWS("Laws & Norms"),
+    TUTORIAL("Tutorial"),
+    RULES("Rules"),
     SOCIETY("Society"),
-    ADMINISTRATION("Administration"),
+    ADMINISTRATION("Admin"),
     SETTINGS("Settings")
 }
 
